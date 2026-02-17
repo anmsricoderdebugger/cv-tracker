@@ -22,6 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def health_check():
+    return {"status": "ok", "service": "CV Tracker API"}
+
+
 from backend.routers import auth, cv_files, export, folders, job_descriptions, matching, websocket
 
 app.include_router(auth.router)
