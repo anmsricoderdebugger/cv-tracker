@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+uploaded_cvs/
+.google_credentials.json
+.DS_Store
+.claude/
+uv.lock

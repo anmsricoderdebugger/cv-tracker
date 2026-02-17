@@ -1,0 +1,37 @@
+databases:
+  - name: cvtracker-db
+    plan: free
+    databaseName: cvtracker
+    user: cvtracker
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: cvtracker-api
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cvtracker-db
+          property: connectionString
+      - key: GROQ_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_FAST_MODEL
+        value: llama-3.1-8b-instant
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /docs
+
+  # Streamlit Frontend
+  - type: web
+    name: cvtracker-ui
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile.frontend
+    envVars:
+      - key: API_BASE_URL
+        sync: false  # Set manually: https://cvtracker-api.onrender.com/api/v1
