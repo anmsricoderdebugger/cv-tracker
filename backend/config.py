@@ -3,6 +3,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://cvtracker:cvtracker_pass@localhost:5432/cvtracker"
+
+    @property
+    def db_url(self) -> str:
+        """Render provides postgres:// but SQLAlchemy 2.0+ requires postgresql://"""
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
     REDIS_URL: str = "redis://localhost:6379/0"
     JWT_SECRET: str = "change-me-to-a-random-secret-key"
     JWT_ALGORITHM: str = "HS256"
