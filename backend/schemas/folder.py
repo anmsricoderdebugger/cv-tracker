@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class FolderCreate(BaseModel):
-    folder_path: str
+    folder_path: str | None = None
     label: str | None = None
 
 

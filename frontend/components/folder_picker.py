@@ -4,63 +4,83 @@ from frontend import api_client
 
 
 def render_folder_picker():
-    st.subheader("Connect Folder")
+    st.subheader("Create CV Collection")
 
     with st.form("folder_form"):
-        folder_path = st.text_input(
-            "Folder Path",
-            placeholder="/path/to/cv/folder",
-            help="Enter the full path to the folder containing CVs (PDF/DOCX)"
+        label = st.text_input(
+            "Collection Name",
+            placeholder="e.g. Senior Dev Candidates",
+            help="Give your CV collection a descriptive name",
         )
-        label = st.text_input("Label (optional)", placeholder="e.g. Senior Dev Candidates")
-        submitted = st.form_submit_button("Connect Folder", use_container_width=True)
+        submitted = st.form_submit_button("Create Collection", use_container_width=True)
 
         if submitted:
-            if not folder_path:
-                st.error("Folder path is required")
+            if not label:
+                st.error("Collection name is required")
                 return
             try:
-                folder = api_client.create_folder(folder_path, label or None)
-                st.success(f"Folder connected: {folder['label']}")
+                folder = api_client.create_folder(label)
+                st.success(f"Collection created: {folder['label']}")
                 st.rerun()
             except Exception as e:
-                st.error(f"Failed to connect folder: {e}")
+                st.error(f"Failed to create collection: {e}")
+
+    # Upload section - show if there are collections
+    folders = api_client.list_folders()
+    if folders:
+        st.subheader("Upload CVs")
+
+        folder_options = {f['label']: f['id'] for f in folders}
+        selected_label = st.selectbox(
+            "Select Collection",
+            options=list(folder_options.keys()),
+            key="upload_folder_select",
+        )
+
+        uploaded_files = st.file_uploader(
+            "Upload CV files (PDF or DOCX)",
+            type=["pdf", "docx"],
+            accept_multiple_files=True,
+            key="cv_uploader",
+        )
+
+        if uploaded_files and selected_label:
+            if st.button("Upload & Process", use_container_width=True, type="primary"):
+                folder_id = folder_options[selected_label]
+                file_data = [(f.name, f.getvalue()) for f in uploaded_files]
+
+                with st.spinner(f"Uploading {len(file_data)} file(s)..."):
+                    try:
+                        result = api_client.upload_cvs(folder_id, file_data)
+                        st.success(
+                            f"Uploaded: {result['new']} new, "
+                            f"{result['skipped']} duplicates skipped"
+                        )
+                        if result.get("task_id"):
+                            st.info("Processing started in background...")
+                            st.session_state[f"task_{folder_id}"] = result["task_id"]
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Upload failed: {e}")
 
 
 def render_folder_list():
-    st.subheader("Monitored Folders")
+    st.subheader("CV Collections")
 
     folders = api_client.list_folders()
     if not folders:
-        st.info("No folders connected yet. Add one above.")
+        st.info("No collections yet. Create one above.")
         return
 
     for folder in folders:
-        with st.expander(f"📁 {folder['label'] or folder['folder_path']}", expanded=True):
-            col1, col2, col3 = st.columns([2, 1, 1])
+        with st.expander(f"📁 {folder['label']}", expanded=True):
+            col1, col2 = st.columns([3, 1])
             with col1:
-                st.text(f"Path: {folder['folder_path']}")
                 if folder["last_scanned_at"]:
-                    st.text(f"Last scanned: {folder['last_scanned_at'][:19]}")
+                    st.text(f"Last updated: {folder['last_scanned_at'][:19]}")
                 else:
-                    st.text("Not scanned yet")
+                    st.text("No CVs uploaded yet")
             with col2:
-                if st.button("🔍 Scan", key=f"scan_{folder['id']}", use_container_width=True):
-                    with st.spinner("Scanning folder..."):
-                        try:
-                            result = api_client.scan_folder(folder["id"])
-                            st.success(
-                                f"Found {result['total_on_disk']} CVs: "
-                                f"{result['new']} new, {result['modified']} modified, "
-                                f"{result['skipped']} unchanged"
-                            )
-                            if result.get("task_id"):
-                                st.info(f"Processing task started: {result['task_id'][:8]}...")
-                                st.session_state[f"task_{folder['id']}"] = result["task_id"]
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Scan failed: {e}")
-            with col3:
                 if st.button("🗑️ Remove", key=f"del_{folder['id']}", use_container_width=True):
                     try:
                         api_client.delete_folder(folder["id"])

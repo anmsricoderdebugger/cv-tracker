@@ -1,4 +1,5 @@
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -8,28 +9,32 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.models.cv_file import CVFile
 from backend.models.monitored_folder import MonitoredFolder
-from backend.utils.hashing import compute_file_hash
+from backend.utils.hashing import compute_file_hash, compute_hash_from_bytes
+
+
+UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "cv_uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 def register_folder(
-    db: Session, user_id: UUID, folder_path: str, label: str | None = None
+    db: Session, user_id: UUID, folder_path: str | None = None, label: str | None = None
 ) -> MonitoredFolder:
-    folder_path = str(Path(folder_path).resolve())
-    if not os.path.isdir(folder_path):
-        raise ValueError(f"Folder does not exist: {folder_path}")
+    label = label or folder_path or "Uploaded CVs"
+    # Use a virtual path for cloud deployment
+    virtual_path = folder_path if folder_path else f"cloud://{label}"
 
     existing = (
         db.query(MonitoredFolder)
-        .filter(MonitoredFolder.user_id == user_id, MonitoredFolder.folder_path == folder_path)
+        .filter(MonitoredFolder.user_id == user_id, MonitoredFolder.folder_path == virtual_path)
         .first()
     )
     if existing:
-        raise ValueError("Folder already registered")
+        raise ValueError("Collection already exists with this name")
 
     folder = MonitoredFolder(
         user_id=user_id,
-        folder_path=folder_path,
-        label=label or Path(folder_path).name,
+        folder_path=virtual_path,
+        label=label,
     )
     db.add(folder)
     db.commit()
@@ -37,8 +42,79 @@ def register_folder(
     return folder
 
 
+def add_uploaded_files(
+    db: Session, folder: MonitoredFolder, files: list[tuple[str, bytes]]
+) -> dict:
+    """Add uploaded CV files to a folder collection.
+
+    Args:
+        files: list of (filename, file_bytes) tuples
+    """
+    allowed_exts = set(settings.ALLOWED_EXTENSIONS)
+    new_count = 0
+    skipped_count = 0
+    new_cv_ids = []
+
+    for filename, content in files:
+        ext = Path(filename).suffix.lower()
+        if ext not in allowed_exts:
+            continue
+
+        file_hash = compute_hash_from_bytes(content)
+
+        # Check for duplicate by hash within this folder
+        existing = (
+            db.query(CVFile)
+            .filter(CVFile.folder_id == folder.id, CVFile.file_hash == file_hash)
+            .first()
+        )
+        if existing:
+            skipped_count += 1
+            continue
+
+        # Save file to temp upload dir for processing
+        upload_path = os.path.join(UPLOAD_DIR, f"{file_hash}{ext}")
+        with open(upload_path, "wb") as f:
+            f.write(content)
+
+        cv = CVFile(
+            folder_id=folder.id,
+            file_name=filename,
+            file_path=upload_path,
+            file_hash=file_hash,
+            file_size_bytes=len(content),
+            status="new",
+        )
+        db.add(cv)
+        db.flush()
+        new_count += 1
+        new_cv_ids.append(cv.id)
+
+    folder.last_scanned_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {
+        "total_uploaded": len(files),
+        "new": new_count,
+        "skipped": skipped_count,
+        "new_cv_ids": [str(cid) for cid in new_cv_ids],
+    }
+
+
 def scan_folder(db: Session, folder: MonitoredFolder) -> dict:
+    """Scan a local folder for CV files. Only works for local folder paths."""
     folder_path = folder.folder_path
+
+    # Cloud/virtual folders can't be scanned
+    if folder_path.startswith("cloud://"):
+        return {
+            "total_on_disk": 0,
+            "new": 0,
+            "modified": 0,
+            "skipped": 0,
+            "new_cv_ids": [],
+        }
+
     if not os.path.isdir(folder_path):
         raise ValueError(f"Folder no longer exists: {folder_path}")
 

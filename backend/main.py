@@ -7,9 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    from backend.watchers.watcher_manager import stop_all
-
-    stop_all()
 
 
 app = FastAPI(title="CV Tracker & Smart ATS Matcher", version="0.1.0", lifespan=lifespan)

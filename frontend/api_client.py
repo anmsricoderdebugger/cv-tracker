@@ -91,11 +91,22 @@ def delete_jd(jd_id: str):
 
 
 # Folders
-def create_folder(folder_path: str, label: str | None = None) -> dict:
-    body = {"folder_path": folder_path}
-    if label:
-        body["label"] = label
+def create_folder(label: str, folder_path: str | None = None) -> dict:
+    body = {"label": label}
+    if folder_path:
+        body["folder_path"] = folder_path
     resp = httpx.post(f"{BASE_URL}/folders/", json=body, headers=_headers())
+    return _handle_response(resp)
+
+
+def upload_cvs(folder_id: str, files: list[tuple[str, bytes]]) -> dict:
+    multipart_files = [("files", (name, content)) for name, content in files]
+    resp = httpx.post(
+        f"{BASE_URL}/folders/{folder_id}/upload",
+        files=multipart_files,
+        headers=_headers(),
+        timeout=300,
+    )
     return _handle_response(resp)
 
 
