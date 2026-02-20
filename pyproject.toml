@@ -25,6 +25,8 @@ dependencies = [
     # Google OAuth2 SSO
     "authlib>=1.3",
     "itsdangerous>=2.2",
+    # Redis (OAuth state + task progress)
+    "redis>=5.0",
     # Filesystem Watching
     "watchdog>=4.0",
     # Export

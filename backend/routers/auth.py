@@ -11,7 +11,7 @@ from backend.dependencies import get_current_user, get_db
 from backend.models.user import User
 from backend.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserResponse
 from backend.services.auth_service import authenticate, create_access_token, signup
-from backend.utils.redis_client import get_redis
+from backend.utils.redis_client import delete, exists, setex
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -72,8 +72,7 @@ def google_login():
         )
 
     state = secrets.token_urlsafe(32)
-    r = get_redis()
-    r.setex(f"oauth:state:{state}", _OAUTH_STATE_TTL, "pending")
+    setex(f"oauth:state:{state}", _OAUTH_STATE_TTL, "pending")
 
     params = urlencode({
         "client_id": settings.GOOGLE_CLIENT_ID,
@@ -96,14 +95,13 @@ def google_callback(code: str, state: str, db: Session = Depends(get_db)):
     database, and redirects the frontend with a JWT token in the query string.
     """
     # Validate CSRF state
-    r = get_redis()
     state_key = f"oauth:state:{state}"
-    if not r.exists(state_key):
+    if not exists(state_key):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OAuth state. Please try signing in again.",
         )
-    r.delete(state_key)
+    delete(state_key)
 
     # Exchange authorization code for tokens
     token_resp = httpx.post(

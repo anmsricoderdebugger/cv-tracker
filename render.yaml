@@ -29,8 +29,11 @@ services:
       - key: APP_BASE_URL
         sync: false
       # Vertex AI (Google Cloud LLM)
-      # On Render, authenticate via a service account JSON key:
-      #   Set GOOGLE_APPLICATION_CREDENTIALS_JSON to the contents of your key file
+      # Paste the full contents of your GCP service account key JSON here.
+      # entrypoint.sh will write it to a temp file and set
+      # GOOGLE_APPLICATION_CREDENTIALS automatically.
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
       - key: VERTEX_PROJECT_ID
         sync: false
       - key: VERTEX_LOCATION
