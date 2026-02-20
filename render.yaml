@@ -17,14 +17,28 @@ services:
         fromDatabase:
           name: cvtracker-db
           property: connectionString
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
-      - key: GROQ_FAST_MODEL
-        value: llama-3.1-8b-instant
       - key: JWT_SECRET
         generateValue: true
+      # Google OAuth2 SSO — set these in Render dashboard after first deploy
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      # Vertex AI (Google Cloud LLM)
+      # On Render, authenticate via a service account JSON key:
+      #   Set GOOGLE_APPLICATION_CREDENTIALS_JSON to the contents of your key file
+      - key: VERTEX_PROJECT_ID
+        sync: false
+      - key: VERTEX_LOCATION
+        value: us-central1
+      - key: VERTEX_MODEL
+        value: gemini-1.5-pro
+      - key: VERTEX_FAST_MODEL
+        value: gemini-1.5-flash
 
   # Streamlit Frontend
   - type: web

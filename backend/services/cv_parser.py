@@ -59,13 +59,13 @@ MAX_CV_CHARS = 15000  # ~4K tokens
 
 def parse_cv_text(raw_text: str) -> dict:
     if not is_llm_available():
-        return {"candidate_name": None, "summary": "LLM not configured - raw text stored only"}
+        return {"candidate_name": None, "summary": "Vertex AI not configured - raw text stored only"}
     truncated = raw_text[:MAX_CV_CHARS] if len(raw_text) > MAX_CV_CHARS else raw_text
     return call_llm(
         system_prompt=CV_PARSE_SYSTEM_PROMPT,
         user_prompt=truncated,
         response_json=True,
-        model=settings.GROQ_FAST_MODEL,
+        model=settings.VERTEX_FAST_MODEL,
     )
 
 
@@ -89,7 +89,7 @@ def process_single_cv(db: Session, cv_file_id: str) -> ParsedCV:
                 if hasattr(existing, key):
                     setattr(existing, key, value)
             existing.raw_text = raw_text
-            existing.parse_model = settings.GROQ_MODEL
+            existing.parse_model = settings.VERTEX_MODEL
             existing.parsed_at = datetime.now(timezone.utc)
             parsed_cv = existing
         else:
@@ -107,7 +107,7 @@ def process_single_cv(db: Session, cv_file_id: str) -> ParsedCV:
                 certifications=parsed_data.get("certifications"),
                 summary=parsed_data.get("summary"),
                 raw_text=raw_text,
-                parse_model=settings.GROQ_MODEL,
+                parse_model=settings.VERTEX_MODEL,
                 parsed_at=datetime.now(timezone.utc),
             )
             db.add(parsed_cv)

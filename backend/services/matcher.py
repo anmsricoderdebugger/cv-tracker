@@ -107,8 +107,8 @@ def match_cv_to_jd(db: Session, cv_file_id: UUID, jd_id: UUID) -> MatchResult:
             "matched_skills": [],
             "missing_skills": [],
             "strengths": [],
-            "gaps": ["LLM not configured - unable to perform AI matching"],
-            "explanation": "Groq API not configured. Set GROQ_API_KEY in .env to enable AI matching.",
+            "gaps": ["Vertex AI not configured - unable to perform AI matching"],
+            "explanation": "Vertex AI not configured. Set VERTEX_PROJECT_ID in .env to enable AI matching.",
         }
     else:
         match_input = json.dumps({"job_description": jd_data, "candidate_cv": cv_data})
@@ -147,7 +147,7 @@ def match_cv_to_jd(db: Session, cv_file_id: UUID, jd_id: UUID) -> MatchResult:
         existing.gaps = result.get("gaps")
         existing.explanation = result.get("explanation")
         existing.weights_used = weights
-        existing.match_model = settings.GROQ_MODEL
+        existing.match_model = settings.VERTEX_MODEL
         match_result = existing
     else:
         match_result = MatchResult(
@@ -165,7 +165,7 @@ def match_cv_to_jd(db: Session, cv_file_id: UUID, jd_id: UUID) -> MatchResult:
             gaps=result.get("gaps"),
             explanation=result.get("explanation"),
             weights_used=weights,
-            match_model=settings.GROQ_MODEL,
+            match_model=settings.VERTEX_MODEL,
         )
         db.add(match_result)
 
