@@ -1,0 +1,112 @@
+# Google Cloud Build CI/CD pipeline
+# Triggered on push to main branch via Cloud Build trigger connected to GitHub.
+#
+# Prerequisites:
+#   1. Artifact Registry repo:
+#        gcloud artifacts repositories create cvtracker \
+#          --repository-format=docker --location=us-central1
+#   2. Cloud Run services already created (first deploy done manually):
+#        gcloud run deploy cvtracker-api  --region=us-central1 ...
+#        gcloud run deploy cvtracker-ui   --region=us-central1 ...
+#   3. Cloud Build service account has roles:
+#        roles/run.admin, roles/artifactregistry.writer, roles/iam.serviceAccountUser
+
+substitutions:
+  _REGION: us-central1
+  _REPO: cvtracker
+
+steps:
+  # -------------------------------------------------------------------------
+  # Build backend image
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-backend
+    args:
+      - build
+      - -f
+      - Dockerfile.backend
+      - -t
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${COMMIT_SHA}"
+      - -t
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest"
+      - .
+
+  # -------------------------------------------------------------------------
+  # Build frontend image
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-frontend
+    args:
+      - build
+      - -f
+      - Dockerfile.frontend
+      - -t
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
+      - -t
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
+      - .
+
+  # -------------------------------------------------------------------------
+  # Push backend image
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-backend
+    waitFor:
+      - build-backend
+    args:
+      - push
+      - --all-tags
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend"
+
+  # -------------------------------------------------------------------------
+  # Push frontend image
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-frontend
+    waitFor:
+      - build-frontend
+    args:
+      - push
+      - --all-tags
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend"
+
+  # -------------------------------------------------------------------------
+  # Deploy backend to Cloud Run
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-backend
+    waitFor:
+      - push-backend
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - cvtracker-api
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${COMMIT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+  # -------------------------------------------------------------------------
+  # Deploy frontend to Cloud Run
+  # -------------------------------------------------------------------------
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-frontend
+    waitFor:
+      - push-frontend
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - cvtracker-ui
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${COMMIT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

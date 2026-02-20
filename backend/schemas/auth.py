@@ -24,5 +24,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     is_active: bool
+    google_id: str | None = None
+    profile_picture_url: str | None = None
 
     model_config = {"from_attributes": True}

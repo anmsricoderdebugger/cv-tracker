@@ -7,9 +7,25 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from frontend.auth_state import is_authenticated
+from frontend import api_client
+from frontend.auth_state import is_authenticated, set_auth
 from frontend.components.sidebar import render_sidebar
 from frontend.pages import cv_detail, cv_management, dashboard, job_descriptions, login, matching
+
+# ---------------------------------------------------------------------------
+# Handle Google OAuth2 SSO callback — token passed as ?token=... query param
+# ---------------------------------------------------------------------------
+_qp = st.query_params
+if "token" in _qp and not is_authenticated():
+    _sso_token = _qp["token"]
+    try:
+        _user = api_client.get_me(token=_sso_token)
+        set_auth(_sso_token, _user)
+    except Exception:
+        st.error("Google sign-in failed. Please try again.")
+    finally:
+        st.query_params.clear()
+    st.rerun()
 
 # Check for page override from other components
 page_override = st.session_state.pop("page_override", None)
